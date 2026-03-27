@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Plus, Edit2, Trash2, Eye, Calendar, Users, Tag } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, Calendar, Users, Tag, Star, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import api from '../api/axios';
 import Loader from '../components/Loader';
 import { formatDate, formatPrice, getImageUrl } from '../utils/formatters';
@@ -9,9 +9,109 @@ import './OrganizerPage.css';
 
 const EMPTY_FORM = {
   title: '', description: '', category: 'General', event_date: '', event_time: '',
+  end_time: '',
   location: '', address: '', total_seats: 100, price: 0,
 };
 
+const renderStars = (rating) => {
+  const value = Math.round(Number(rating) || 0);
+  return Array.from({ length: 5 }, (_, i) => (
+    <span key={i} style={{ color: i < value ? '#f5a623' : '#ccc', fontSize: '1rem' }}>★</span>
+  ));
+};
+
+const StarBar = ({ rating, max = 5 }) => (
+  <span className="org-stars" title={`${rating} / ${max}`}>
+    {renderStars(rating)}
+  </span>
+);
+
+/* ── Reviews panel for a single event ────────────────── */
+const EventReviewsPanel = ({ eventId }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    if (data) return; // already loaded
+    setLoading(true);
+    try {
+      const res = await api.get(`/reviews/events/${eventId}/reviews`);
+      setData(res.data.data);
+    } catch {
+      setData({ reviews: [], avgRating: null, totalReviews: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId, data]);
+
+  const toggleOpen = () => {
+    if (!open) load();
+    setOpen(o => !o);
+  };
+
+  return (
+    <div className="org-reviews-panel">
+      <button className="org-reviews-toggle" onClick={toggleOpen}>
+        <MessageSquare size={14} />
+        {open ? 'Hide Reviews' : 'Show User Reviews'}
+        {data && data.totalReviews > 0 && (
+          <span className="org-reviews-badge">{data.totalReviews}</span>
+        )}
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+
+      {open && (
+        <div className="org-reviews-body">
+          {loading && <p className="org-reviews-empty">Loading reviews…</p>}
+
+          {!loading && data && (
+            <>
+              {/* Summary bar */}
+              {data.totalReviews > 0 ? (
+                <div className="org-reviews-summary">
+                  <div className="org-avg-rating">
+                    <span className="org-avg-number">{data.avgRating?.toFixed(1)}</span>
+                    <StarBar rating={data.avgRating} />
+                    <span className="org-avg-count">({data.totalReviews} {data.totalReviews === 1 ? 'review' : 'reviews'})</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="org-reviews-empty">No user reviews yet for this event.</p>
+              )}
+
+              {/* Individual reviews */}
+              {data.reviews.map(r => (
+                <div key={r.id} className="org-review-item">
+                  <div className="org-review-header">
+                    <div className="org-reviewer-avatar">
+                      {r.reviewer_name?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                    <div className="org-reviewer-info">
+                      <strong>{r.reviewer_name || 'Anonymous'}</strong>
+                      <span className="org-review-date">
+                        {r.updated_at ? new Date(r.updated_at).toLocaleDateString('en-NP', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                      </span>
+                    </div>
+                    <div className="org-review-stars">
+                      <StarBar rating={r.rating} />
+                      <span className="org-review-score">{r.rating}/5</span>
+                    </div>
+                  </div>
+                  {r.feedback && (
+                    <p className="org-review-feedback">"{r.feedback}"</p>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── Main Organizer Page ────────────────────────────── */
 const OrganizerPage = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +145,7 @@ const OrganizerPage = () => {
     setForm({
       title: event.title, description: event.description || '',
       category: event.category, event_date: event.event_date?.split('T')[0] || '',
-      event_time: event.event_time || '', location: event.location,
+      event_time: event.event_time || '', end_time: event.end_time || '', location: event.location,
       address: event.address || '', total_seats: event.total_seats, price: event.price,
     });
     setPosterPreview(getImageUrl(event.poster_url));
@@ -74,8 +174,8 @@ const OrganizerPage = () => {
         await api.put(`/events/${editingId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         toast.success('Event updated!');
       } else {
-        await api.post('/events', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        toast.success('Event created! 🎉');
+        const res = await api.post('/events', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        toast.success(res?.data?.message || 'Event submitted for approval.');
       }
       setForm(EMPTY_FORM); setPoster(null); setPosterPreview(null);
       setEditingId(null); setShowForm(false);
@@ -96,7 +196,7 @@ const OrganizerPage = () => {
         <div className="container flex-between">
           <div>
             <h1>My Events</h1>
-            <p>Create and manage your events</p>
+            <p>Create and manage your events (new events require admin approval)</p>
           </div>
           <button className="btn btn-accent btn-lg" onClick={() => { resetForm(); setShowForm(true); }}>
             <Plus size={18} /> New Event
@@ -152,6 +252,10 @@ const OrganizerPage = () => {
                     <input type="time" name="event_time" className="form-control" value={form.event_time} onChange={handleChange} required />
                   </div>
                   <div className="form-group">
+                    <label className="form-label">End Time *</label>
+                    <input type="time" name="end_time" className="form-control" value={form.end_time} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">Location *</label>
                     <input type="text" name="location" className="form-control" placeholder="e.g. Pokhara, Nepal" value={form.location} onChange={handleChange} required />
                   </div>
@@ -200,10 +304,33 @@ const OrganizerPage = () => {
                   <div className="organizer-event-row__info">
                     <h4>{event.title}</h4>
                     <div className="organizer-event-row__meta">
+                      <span className={`badge ${event.is_active ? 'badge-teal' : 'badge-red'}`}>
+                        {event.review_status === 'rejected' ? 'Rejected' : event.is_active ? 'Approved' : 'Pending Approval'}
+                      </span>
                       <span><Calendar size={12} />{formatDate(event.event_date)}</span>
                       <span><Users size={12} />{event.available_seats}/{event.total_seats} seats</span>
                       <span><Tag size={12} />{formatPrice(event.price)}</span>
                     </div>
+
+                    {/* Admin feedback & rating */}
+                    {event.admin_feedback && (
+                      <div style={{ marginTop: '0.45rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                        <strong>Admin feedback:</strong> {event.admin_feedback}
+                      </div>
+                    )}
+                    {event.admin_rating && (
+                      <div className="org-admin-rating-row">
+                        <Star size={13} style={{ color: '#f5a623' }} />
+                        <strong>Admin rating:</strong>
+                        <StarBar rating={event.admin_rating} />
+                        <span>({event.admin_rating}/5)</span>
+                      </div>
+                    )}
+
+                    {/* User reviews panel — only show when event is approved */}
+                    {event.is_active && (
+                      <EventReviewsPanel eventId={event.id} />
+                    )}
                   </div>
                   <div className="organizer-event-row__actions">
                     <Link to={`/events/${event.id}`} className="btn btn-ghost btn-sm"><Eye size={14} /></Link>

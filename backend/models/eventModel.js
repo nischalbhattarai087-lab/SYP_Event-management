@@ -10,7 +10,7 @@ const EventModel = {
     if (date_from) { conditions.push(`e.event_date >= $${idx++}`); params.push(date_from); }
     if (date_to) { conditions.push(`e.event_date <= $${idx++}`); params.push(date_to); }
     if (location) { conditions.push(`LOWER(e.location) LIKE $${idx++}`); params.push(`%${location.toLowerCase()}%`); }
-    if (search) { conditions.push(`(LOWER(e.title) LIKE $${idx++} OR LOWER(e.description) LIKE $${idx++})`); params.push(`%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`); idx++; }
+    if (search) { conditions.push(`(LOWER(e.title) LIKE $${idx++} OR LOWER(e.description) LIKE $${idx++})`); params.push(`%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`); }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     params.push(limit, offset);
@@ -35,7 +35,7 @@ const EventModel = {
     if (date_from) { conditions.push(`event_date >= $${idx++}`); params.push(date_from); }
     if (date_to) { conditions.push(`event_date <= $${idx++}`); params.push(date_to); }
     if (location) { conditions.push(`LOWER(location) LIKE $${idx++}`); params.push(`%${location.toLowerCase()}%`); }
-    if (search) { conditions.push(`(LOWER(title) LIKE $${idx++} OR LOWER(description) LIKE $${idx++})`); params.push(`%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`); idx++; }
+    if (search) { conditions.push(`(LOWER(title) LIKE $${idx++} OR LOWER(description) LIKE $${idx++})`); params.push(`%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`); }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await db.query(`SELECT COUNT(*) FROM events ${where}`, params);
@@ -60,17 +60,17 @@ const EventModel = {
     return result.rows;
   },
 
-  async create({ title, description, category, event_date, event_time, location, address, poster_url, organizer_id, total_seats, price }) {
+  async create({ title, description, category, event_date, event_time, end_time, location, address, poster_url, organizer_id, total_seats, price, is_active = true, review_status = 'pending' }) {
     const result = await db.query(
-      `INSERT INTO events (title, description, category, event_date, event_time, location, address, poster_url, organizer_id, total_seats, available_seats, price)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11) RETURNING *`,
-      [title, description, category, event_date, event_time, location, address, poster_url, organizer_id, total_seats, price]
+      `INSERT INTO events (title, description, category, event_date, event_time, end_time, location, address, poster_url, organizer_id, total_seats, available_seats, price, is_active, review_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12,$13,$14) RETURNING *`,
+      [title, description, category, event_date, event_time, end_time, location, address, poster_url, organizer_id, total_seats, price, is_active, review_status]
     );
     return result.rows[0];
   },
 
   async update(id, fields) {
-    const allowed = ['title', 'description', 'category', 'event_date', 'event_time', 'location', 'address', 'poster_url', 'total_seats', 'price', 'is_active'];
+    const allowed = ['title', 'description', 'category', 'event_date', 'event_time', 'end_time', 'location', 'address', 'poster_url', 'total_seats', 'price', 'is_active', 'review_status', 'admin_feedback', 'reviewed_by', 'reviewed_at', 'admin_rating'];
     const updates = [];
     const params = [];
     let idx = 1;

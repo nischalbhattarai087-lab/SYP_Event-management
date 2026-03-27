@@ -16,6 +16,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import OrganizerPage from './pages/OrganizerPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import ChatPage from './pages/ChatPage';
 
 import './styles/global.css';
 
@@ -54,6 +55,11 @@ const AppRoutes = () => (
         {/* Protected — admin only */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['admin']}><AdminDashboardPage /></ProtectedRoute>
+        } />
+
+        {/* Protected — any logged-in user */}
+        <Route path="/chat" element={
+          <ProtectedRoute><ChatPage /></ProtectedRoute>
         } />
 
         {/* Fallback */}

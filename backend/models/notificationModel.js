@@ -12,7 +12,9 @@ const NotificationModel = {
 
   async findByUser(user_id) {
     const result = await db.query(
-      `SELECT n.*, e.title AS event_title FROM notifications n
+      `SELECT n.id, n.user_id, n.event_id, n.message, n.type, n.is_read,
+              n.created_at, n.metadata, e.title AS event_title
+       FROM notifications n
        LEFT JOIN events e ON n.event_id = e.id
        WHERE n.user_id = $1
        ORDER BY n.created_at DESC`,

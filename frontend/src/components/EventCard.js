@@ -37,7 +37,7 @@ const EventCard = ({ event }) => {
             <Calendar size={13} /> {formatDate(event.event_date)}
           </span>
           <span className="event-card__meta-item">
-            <Clock size={13} /> {formatTime(event.event_time)}
+            <Clock size={13} /> {formatTime(event.event_time)}{event.end_time ? ` - ${formatTime(event.end_time)}` : ''}
           </span>
           <span className="event-card__meta-item">
             <MapPin size={13} /> {event.location}

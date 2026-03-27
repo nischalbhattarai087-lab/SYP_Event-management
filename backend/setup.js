@@ -47,6 +47,7 @@ async function run() {
         category VARCHAR(50) DEFAULT 'General' CHECK (category IN ('Concert','Conference','Workshop','Festival','Sports','Theater','Exhibition','General')),
         event_date DATE NOT NULL,
         event_time TIME NOT NULL,
+        end_time TIME,
         location VARCHAR(200) NOT NULL,
         address TEXT,
         poster_url VARCHAR(255),
@@ -55,6 +56,11 @@ async function run() {
         available_seats INTEGER NOT NULL DEFAULT 100,
         price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         is_active BOOLEAN DEFAULT TRUE,
+        review_status VARCHAR(20) DEFAULT 'pending' CHECK (review_status IN ('pending','approved','rejected')),
+        admin_feedback TEXT,
+        admin_rating INTEGER CHECK (admin_rating BETWEEN 1 AND 5),
+        reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        reviewed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
@@ -88,10 +94,56 @@ async function run() {
     `);
     console.log('Table: notifications created');
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS event_reviews (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+        rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+        feedback TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE (user_id, event_id)
+      )
+    `);
+    console.log('Table: event_reviews created');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        participant_one_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        participant_two_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CHECK (participant_one_id <> participant_two_id),
+        UNIQUE (participant_one_id, participant_two_id)
+      )
+    `);
+    console.log('Table: conversations created');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('Table: messages created');
+
+    await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP');
+    await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS cancel_reason TEXT');
+    console.log('Columns: tickets cancellation metadata ready');
+
     await client.query('CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_events_category ON events(category)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_event_reviews_user_event ON event_reviews(user_id, event_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_conversations_p1 ON conversations(participant_one_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_conversations_p2 ON conversations(participant_two_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
     console.log('Indexes created');
 
     // Seed admin

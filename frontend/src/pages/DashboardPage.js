@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, Bell, Calendar, MapPin, Clock, CheckCircle } from 'lucide-react';
+import { Ticket, Bell, Calendar, MapPin, Clock, CheckCircle, Clock3, Download, XCircle, MessageCircle } from 'lucide-react';
+import { toast } from 'react-toastify';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Loader from '../components/Loader';
@@ -13,27 +14,83 @@ const DashboardPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('tickets');
+  const [orgRequestStatus, setOrgRequestStatus] = useState('none');
+  const [cancelModal, setCancelModal] = useState(null); // ticket object or null
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [tRes, nRes] = await Promise.all([
+        api.get('/tickets/my'),
+        api.get('/notifications'),
+      ]);
+      setTickets(tRes.data.data || []);
+      setNotifications(nRes.data.data || []);
+    } catch {}
+    finally { setLoading(false); }
+  }, []);
 
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [tRes, nRes] = await Promise.all([
-          api.get('/tickets/my'),
-          api.get('/notifications'),
-        ]);
-        setTickets(tRes.data.data || []);
-        setNotifications(nRes.data.data || []);
-      } catch {}
-      finally { setLoading(false); }
-    };
     fetchAll();
-  }, []);
+    if (user && user.role === 'user') {
+      api.get('/organizer-requests/my-status')
+        .then(res => setOrgRequestStatus(res.data.data?.status || 'none'))
+        .catch(() => {});
+    }
+  }, [user, fetchAll]);
 
   const markAllRead = async () => {
     try {
       await api.put('/notifications/mark-all-read');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch {}
+  };
+
+  const handleDownload = async (ticket) => {
+    setDownloadingId(ticket.id);
+    try {
+      const res = await api.get(`/tickets/${ticket.id}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ticket-${ticket.id}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Ticket downloaded!');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to download ticket.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const openCancelModal = (ticket) => {
+    setCancelModal(ticket);
+    setCancelReason('');
+  };
+
+  const closeCancelModal = () => {
+    setCancelModal(null);
+    setCancelReason('');
+  };
+
+  const handleCancel = async () => {
+    if (!cancelModal) return;
+    setCancelling(true);
+    try {
+      await api.put(`/tickets/${cancelModal.id}/cancel`, { reason: cancelReason });
+      toast.success('Ticket cancelled successfully.');
+      closeCancelModal();
+      fetchAll(); // refresh ticket list
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to cancel ticket.');
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -46,6 +103,31 @@ const DashboardPage = () => {
           <p>Manage your tickets and notifications</p>
         </div>
       </div>
+
+      {/* Organizer pending approval banner */}
+      {orgRequestStatus === 'pending' && (
+        <div style={{
+          background: 'linear-gradient(90deg, #fffbeb, #fef3c7)',
+          borderBottom: '1px solid #fcd34d',
+          padding: '0.75rem 1.5rem',
+          display: 'flex', alignItems: 'center', gap: '0.6rem',
+          fontSize: '0.88rem', color: '#92400e', fontWeight: 500,
+        }}>
+          <Clock3 size={16} style={{ flexShrink: 0 }} />
+          <span>⏳ Your <strong>organizer request</strong> is under review. You'll be notified once the admin approves or declines it.</span>
+        </div>
+      )}
+      {orgRequestStatus === 'declined' && (
+        <div style={{
+          background: 'linear-gradient(90deg, #fff5f5, #fee2e2)',
+          borderBottom: '1px solid #fca5a5',
+          padding: '0.75rem 1.5rem',
+          display: 'flex', alignItems: 'center', gap: '0.6rem',
+          fontSize: '0.88rem', color: '#991b1b', fontWeight: 500,
+        }}>
+          <span>❌ Your organizer request was <strong>declined</strong> by admin.</span>
+        </div>
+      )}
 
       <div className="container dashboard__content">
         {/* Profile Card */}
@@ -83,6 +165,9 @@ const DashboardPage = () => {
               <span className="dashboard__tab-badge">{notifications.filter(n => !n.is_read).length}</span>
             )}
           </button>
+          <Link to="/chat" className="dashboard__tab" style={{ textDecoration: 'none' }}>
+            <MessageCircle size={16} /> Chat
+          </Link>
         </div>
 
         {loading ? (
@@ -126,6 +211,29 @@ const DashboardPage = () => {
                     <span className={`badge ${ticket.status === 'confirmed' ? 'badge-sage' : 'badge-red'}`}>
                       <CheckCircle size={11} /> {ticket.status}
                     </span>
+                    <div className="ticket-card__actions">
+                      {ticket.status === 'confirmed' && (
+                        <>
+                          <button
+                            className="btn btn-sm ticket-action-btn ticket-action-btn--download"
+                            onClick={() => handleDownload(ticket)}
+                            disabled={downloadingId === ticket.id}
+                            title="Download Ticket"
+                          >
+                            <Download size={13} />
+                            {downloadingId === ticket.id ? 'Downloading…' : 'Download'}
+                          </button>
+                          <button
+                            className="btn btn-sm ticket-action-btn ticket-action-btn--cancel"
+                            onClick={() => openCancelModal(ticket)}
+                            title="Cancel Ticket"
+                          >
+                            <XCircle size={13} />
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -149,7 +257,7 @@ const DashboardPage = () => {
               notifications.map(n => (
                 <div key={n.id} className={`dashboard__notif-item${n.is_read ? '' : ' unread'}`}>
                   <div className="dashboard__notif-icon">
-                    {n.type === 'ticket_confirmed' ? '🎟️' : n.type === 'event_reminder' ? '⏰' : '📢'}
+                    {n.type === 'ticket_confirmed' ? '🎟️' : n.type === 'event_reminder' ? '⏰' : n.type === 'organizer_request' ? '🧑‍💼' : '📢'}
                   </div>
                   <div className="dashboard__notif-content">
                     <p>{n.message}</p>
@@ -163,6 +271,29 @@ const DashboardPage = () => {
           </div>
         )}
       </div>
+
+      {/* Cancel Confirmation Modal */}
+      {cancelModal && (
+        <div className="modal-overlay" onClick={closeCancelModal}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>Cancel Ticket</h3>
+            <p>Are you sure you want to cancel your ticket for <strong>{cancelModal.event_title}</strong>?</p>
+            <textarea
+              className="cancel-reason-input"
+              rows={3}
+              placeholder="Reason for cancellation (optional)…"
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+            />
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={closeCancelModal} disabled={cancelling}>Keep Ticket</button>
+              <button className="btn btn-danger" onClick={handleCancel} disabled={cancelling}>
+                {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

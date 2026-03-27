@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Menu, X, Bell, Calendar, LogOut, User, LayoutDashboard, Settings } from 'lucide-react';
+import { Menu, X, Bell, Calendar, LogOut, User, LayoutDashboard, Settings, MessageCircle } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import './Navbar.css';
 
@@ -56,6 +56,11 @@ const Navbar = () => {
           {isAdmin() && (
             <NavLink to="/admin" className={({isActive}) => isActive ? 'navbar__link active' : 'navbar__link'}>Admin</NavLink>
           )}
+          {user && (
+            <NavLink to="/chat" className={({isActive}) => isActive ? 'navbar__link active' : 'navbar__link'}>
+              <MessageCircle size={15} style={{verticalAlign:'middle',marginRight:4}} />Chat
+            </NavLink>
+          )}
         </nav>
 
         {/* Right Side */}
@@ -76,6 +81,9 @@ const Navbar = () => {
                     <div className="divider" style={{margin:'0.5rem 0'}} />
                     <Link to="/dashboard" className="navbar__dropdown-item" onClick={() => setDropdownOpen(false)}>
                       <LayoutDashboard size={15} /> Dashboard
+                    </Link>
+                    <Link to="/chat" className="navbar__dropdown-item" onClick={() => setDropdownOpen(false)}>
+                      <MessageCircle size={15} /> Messages
                     </Link>
                     {isOrganizer() && (
                       <Link to="/organizer" className="navbar__dropdown-item" onClick={() => setDropdownOpen(false)}>
@@ -116,6 +124,7 @@ const Navbar = () => {
           {user ? (
             <>
               <NavLink to="/dashboard" className="navbar__mobile-link" onClick={() => setMenuOpen(false)}>Dashboard</NavLink>
+              <NavLink to="/chat" className="navbar__mobile-link" onClick={() => setMenuOpen(false)}>Messages</NavLink>
               {isOrganizer() && <NavLink to="/organizer" className="navbar__mobile-link" onClick={() => setMenuOpen(false)}>My Events</NavLink>}
               {isAdmin() && <NavLink to="/admin" className="navbar__mobile-link" onClick={() => setMenuOpen(false)}>Admin</NavLink>}
               <button className="navbar__mobile-link navbar__mobile-logout" onClick={() => { handleLogout(); setMenuOpen(false); }}>Sign Out</button>

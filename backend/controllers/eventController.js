@@ -32,23 +32,31 @@ exports.getEventById = async (req, res) => {
 
 exports.createEvent = async (req, res) => {
   try {
-    const { title, description, category, event_date, event_time, location, address, total_seats, price } = req.body;
+    const { title, description, category, event_date, event_time, end_time, location, address, total_seats, price } = req.body;
 
-    if (!title || !event_date || !event_time || !location || !total_seats || price === undefined) {
-      return res.status(400).json({ success: false, message: 'Title, date, time, location, seats, and price are required.' });
+    if (!title || !event_date || !event_time || !end_time || !location || !total_seats || price === undefined) {
+      return res.status(400).json({ success: false, message: 'Title, date, start time, end time, location, seats, and price are required.' });
     }
 
     const poster_url = req.file ? `/uploads/${req.file.filename}` : null;
 
+    const shouldAutoActivate = req.user.role === 'admin';
+    const reviewStatus = shouldAutoActivate ? 'approved' : 'pending';
     const event = await EventModel.create({
       title, description, category, event_date, event_time,
+      end_time,
       location, address, poster_url,
       organizer_id: req.user.id,
       total_seats: parseInt(total_seats),
       price: parseFloat(price),
+      is_active: shouldAutoActivate,
+      review_status: reviewStatus,
     });
 
-    res.status(201).json({ success: true, message: 'Event created successfully.', data: event });
+    const message = shouldAutoActivate
+      ? 'Event created successfully.'
+      : 'Event submitted successfully. It is now pending admin approval.';
+    res.status(201).json({ success: true, message, data: event });
   } catch (err) {
     console.error('Create event error:', err);
     res.status(500).json({ success: false, message: 'Server error creating event.' });

@@ -26,7 +26,7 @@
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  width: 320px;
+  width: 340px;
   background: white;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -64,6 +64,8 @@
 .notif-bell__item:last-child { border-bottom: none; }
 .notif-bell__item:hover { background: var(--gray-50); }
 .notif-bell__item--unread { background: rgba(135,182,188,0.06); }
+.notif-bell__item--request { cursor: pointer; }
+.notif-bell__item--request:hover { background: rgba(135,182,188,0.12); }
 .notif-bell__icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
 .notif-bell__content { flex: 1; }
 .notif-bell__content p { font-size: 0.83rem; color: var(--text-primary); line-height: 1.5; }
@@ -74,7 +76,84 @@
   background: var(--teal);
   flex-shrink: 0; margin-top: 6px;
 }
+.notif-bell__review-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--teal-dark);
+  background: rgba(135,182,188,0.18);
+  border-radius: 20px;
+  padding: 2px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 1px solid rgba(135,182,188,0.4);
+}
+
+/* ── Inline Review Modal ────────────────────────────── */
+.notif-bell__review-modal {
+  padding: 1rem 1.1rem 0.9rem;
+  background: linear-gradient(135deg, rgba(135,182,188,0.08), rgba(135,182,188,0.04));
+  border-bottom: 2px solid rgba(135,182,188,0.3);
+  animation: slideDown 0.2s ease;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.notif-bell__review-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; font-weight: 700;
+  color: var(--teal-dark);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 0.6rem;
+}
+.notif-bell__review-info {
+  display: flex; flex-direction: column; gap: 1px;
+  margin-bottom: 0.5rem;
+}
+.notif-bell__review-info strong {
+  font-size: 0.92rem; color: var(--gray-800);
+}
+.notif-bell__review-info span {
+  font-size: 0.78rem; color: var(--gray-500);
+}
+.notif-bell__review-desc {
+  font-size: 0.80rem;
+  color: var(--gray-500);
+  line-height: 1.5;
+  margin-bottom: 0.85rem;
+}
+.notif-bell__review-actions {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+}
+.notif-bell__review-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.80rem; font-weight: 700;
+  border: none; cursor: pointer;
+  transition: all var(--transition);
+}
+.notif-bell__review-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.notif-bell__review-btn--approve {
+  background: var(--teal);
+  color: white;
+}
+.notif-bell__review-btn--approve:hover:not(:disabled) { background: var(--teal-dark); transform: translateY(-1px); }
+.notif-bell__review-btn--decline {
+  background: rgba(220,60,60,0.1);
+  color: var(--red);
+  border: 1px solid rgba(220,60,60,0.25);
+}
+.notif-bell__review-btn--decline:hover:not(:disabled) { background: rgba(220,60,60,0.18); }
+.notif-bell__review-btn--cancel {
+  background: var(--gray-50);
+  color: var(--gray-500);
+  border: 1px solid var(--gray-200);
+  margin-left: auto;
+}
+.notif-bell__review-btn--cancel:hover:not(:disabled) { background: var(--gray-100); }
 
 @media (max-width: 480px) {
-  .notif-bell__panel { width: 290px; right: -50px; }
+  .notif-bell__panel { width: 300px; right: -50px; }
 }

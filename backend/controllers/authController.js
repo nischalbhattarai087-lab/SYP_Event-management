@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const UserModel = require('../models/userModel');
+const OrganizerRequestModel = require('../models/organizerRequestModel');
+const db = require('../config/db');
 
 const generateToken = (user) => {
   return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
@@ -25,18 +27,45 @@ exports.register = async (req, res) => {
     }
 
     const password_hash = await bcrypt.hash(password, 12);
-    const allowedRoles = ['user', 'organizer'];
-    const userRole = allowedRoles.includes(role) ? role : 'user';
 
+    // Organizer registrations are created as 'user' and put in a pending approval queue
+    const wantsOrganizer = role === 'organizer';
+    const userRole = 'user'; // always start as user
     const user = await UserModel.create({ name, email, password_hash, role: userRole });
-    const token = generateToken(user);
 
-    res.status(201).json({ success: true, message: 'Registration successful.', token, user });
+    if (wantsOrganizer) {
+      // Create pending organizer request
+      const orgRequest = await OrganizerRequestModel.create(user.id);
+
+      // Notify ALL admins about this request
+      const admins = await db.query("SELECT id FROM users WHERE role = 'admin'");
+      for (const admin of admins.rows) {
+        await db.query(
+          `INSERT INTO notifications (user_id, message, type, metadata)
+           VALUES ($1, $2, 'organizer_request', $3)`,
+          [
+            admin.id,
+            `🧑‍💼 New organizer request from ${name} (${email}).`,
+            JSON.stringify({ requestId: orgRequest.id, requesterId: user.id, requesterName: name, requesterEmail: email }),
+          ]
+        );
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: `Account created! Your organizer request is pending admin approval. You'll be notified once reviewed.`,
+        user,
+        pendingOrganizerRequest: true,
+      });
+    }
+
+    res.status(201).json({ success: true, message: 'Registration successful. Please sign in.', user });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ success: false, message: 'Server error during registration.' });
   }
 };
+
 
 exports.login = async (req, res) => {
   try {
