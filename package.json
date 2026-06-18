@@ -1,0 +1,10 @@
+{
+  "name": "syp-event-management",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm start --prefix frontend\" \"npm run dev --prefix backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
